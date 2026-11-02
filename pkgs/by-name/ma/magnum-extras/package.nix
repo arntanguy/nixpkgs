@@ -11,11 +11,11 @@
 }:
 
 assert lib.assertMsg (
-  withUi && !magnum.args.withGlxApplication
+  !(withUi && !magnum.args.withGlxApplication)
 ) "magnum-extras: withUi=true requires magnum needs to be built with withGlxApplication=true";
 
 assert lib.assertMsg (
-  withUiGallery && !magnum.args.withGlxApplication
+  !(withUiGallery && !magnum.args.withGlxApplication)
 ) "magnum-extras: withUi=true requires magnum needs to be built with withGlxApplication=true";
 
 stdenv.mkDerivation (finalAttrs: {
