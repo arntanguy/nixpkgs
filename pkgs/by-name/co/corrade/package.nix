@@ -4,6 +4,7 @@
   fetchFromGitHub,
   cmake,
   ctestCheckHook,
+  writableTmpDirAsHomeHook,
 }:
 
 stdenv.mkDerivation (finalAttrs: {
@@ -21,37 +22,34 @@ stdenv.mkDerivation (finalAttrs: {
   };
 
   nativeBuildInputs = [ cmake ];
-  nativeCheckInputs = [ ctestCheckHook ];
+  nativeCheckInputs = [
+    ctestCheckHook
+    writableTmpDirAsHomeHook
+  ];
 
   cmakeFlags = [
     (lib.cmakeBool "CORRADE_BUILD_TESTS" finalAttrs.finalPackage.doCheck)
   ];
 
   doCheck = true;
-  postPatch = ''
-    # Helper function to skip tests in the root-privileged Nix sandbox
-    skip_test() {
-      substituteInPlace "$1" \
-        --replace-fail "void $2() {" "void $2() { CORRADE_SKIP(\"Skipped in Nix sandbox\");"
-    }
 
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::mapWriteNoPermission
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::copyWriteNoPermission
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::writeNoPermission
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::appendNoPermission
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::mkpathNoPermission
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::moveDestinationNoPermission
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::configurationDir
-    skip_test src/Corrade/Utility/Test/DirectoryTest.cpp DirectoryTest::home
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::mapWriteNoPermission
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::copyWriteNoPermission
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::writeNoPermission
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::appendNoPermission
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::configurationDirectory
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::moveDestinationNoPermission
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::makeNoPermission
-    skip_test src/Corrade/Utility/Test/PathTest.cpp PathTest::homeDirectory
-    skip_test src/Corrade/PluginManager/Test/ManagerTest.cpp ManagerTest::pluginDirectoryNotReadable
+  postPatch = ''
+    # don't hardcode /root as home
+    substituteInPlace \
+      src/Corrade/PluginManager/Test/ManagerTest.cpp \
+      src/Corrade/Utility/Test/DirectoryTest.cpp \
+      src/Corrade/Utility/Test/PathTest.cpp \
+      --replace-fail \""/root" \""$HOME"
+
+    # except when the check is only about string manipulation
+    substituteInPlace \
+      src/Corrade/Utility/Test/PathTest.cpp \
+      --replace-fail \
+      "\"absolute path with no filename\", \"$HOME\"" \
+      "\"absolute path with no filename\", \"/root\""
+
+    # convince the test that this is really $XDG_CONFIG_HOME
+    mkdir -p $HOME/.config/autostart
   '';
 
   meta = {
